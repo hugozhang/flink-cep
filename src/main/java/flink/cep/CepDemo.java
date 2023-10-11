@@ -45,16 +45,23 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 
 public class CepDemo {
+
+    private static final Logger LOG = LoggerFactory.getLogger(MySQLDataSource.class);
+
+
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
 //        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.enableCheckpointing(1000);
 
+//        env.setParallelism(2);
 
         //输入数据，提取事件时间
         KeyedStream<LoginEvent, Integer> loginEventKeyedStream = env.addSource(new MySQLDataSource())
@@ -77,7 +84,7 @@ public class CepDemo {
                 });
 
         //定义Pattern
-        Pattern<LoginEvent, LoginEvent> pattern = Pattern.<LoginEvent>begin("begin").where(new SimpleCondition<LoginEvent>() {
+        Pattern<LoginEvent, LoginEvent> pattern1 = Pattern.<LoginEvent>begin("begin").where(new SimpleCondition<LoginEvent>() {
             @Override
             public boolean filter(LoginEvent loginEvent) throws Exception {
                 return "fail".equals(loginEvent.getEventType());
@@ -87,19 +94,47 @@ public class CepDemo {
             public boolean filter(LoginEvent loginEvent) throws Exception {
                 return "fail".equals(loginEvent.getEventType());
             }
-        }).within(Time.seconds(5));
+        }).within(Time.seconds(5)).times(1);
+
+
+        Pattern<LoginEvent, LoginEvent> pattern2 = Pattern.<LoginEvent>begin("begin").where(new SimpleCondition<LoginEvent>() {
+            @Override
+            public boolean filter(LoginEvent loginEvent) throws Exception {
+                return "fail".equals(loginEvent.getEventType());
+            }
+        }).<LoginEvent>next("next").where(new SimpleCondition<LoginEvent>() {
+            @Override
+            public boolean filter(LoginEvent loginEvent) throws Exception {
+                return "success".equals(loginEvent.getEventType());
+            }
+        });
+
 
         //检测模式
-        PatternStream<LoginEvent> patternStream = CEP.pattern(loginEventKeyedStream, pattern);
+        PatternStream<LoginEvent> patternStream1 = CEP.pattern(loginEventKeyedStream, pattern1);
+
+        PatternStream<LoginEvent> patternStream2 = CEP.pattern(loginEventKeyedStream, pattern2);
+
 
         //侧输出标志
         OutputTag<LoginEvent> outputTag = new OutputTag<LoginEvent>("timeout") {};
 
         //process方式提取数据
-        SingleOutputStreamOperator<Warning> process = patternStream.process(new MyPatternProcessFunction(outputTag));
+        SingleOutputStreamOperator<Warning> process = patternStream1.process(new MyPatternProcessFunction(outputTag));
         process.print("process login failed twice");
-        //提取超时数据
+//        提取超时数据
         process.getSideOutput(outputTag).print("process timeout");
+
+
+        OutputTag<LoginEvent> outputTag2 = new OutputTag<LoginEvent>("timeout") {};
+
+        //process方式提取数据
+        SingleOutputStreamOperator<Warning> process2 = patternStream2.process(new MyPatternProcessFunction(outputTag2));
+        process2.print("process login failed twice");
+        //提取超时数据
+        process2.getSideOutput(outputTag).print("process timeout");
+
+
 
         //select方式提取数据
 //        SingleOutputStreamOperator<Warning> outputStreamOperator = patternStream
@@ -147,7 +182,9 @@ public class CepDemo {
             LoginEvent begin = map.get("begin").iterator().next();
             LoginEvent next = map.get("next").iterator().next();
 
-            collector.collect(new Warning(begin.getUserId(), begin.getEventType(), next.getEventTime(), "Login failed twice"));
+            Warning warning = new Warning(next.getUserId(), next.getEventType(), next.getEventTime(), "Login failed twice");
+            LOG.info("Warning : {}.",warning);
+            collector.collect(warning);
         }
 
         @Override
