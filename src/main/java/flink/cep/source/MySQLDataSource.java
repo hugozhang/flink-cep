@@ -48,19 +48,19 @@ public class MySQLDataSource extends RichSourceFunction<LoginEvent> {
      */
     @Override
     public void close() throws Exception {
-        super.close();
-
-        if(null!=preparedStatement) {
-            try {
-                preparedStatement.close();
-            } catch (Exception exception) {
-                exception.printStackTrace();
-            }
-        }
-
-        if(null==connection) {
-            connection.close();
-        }
+//        super.close();
+//
+//        if(null!=preparedStatement) {
+//            try {
+//                preparedStatement.close();
+//            } catch (Exception exception) {
+//                exception.printStackTrace();
+//            }
+//        }
+//
+//        if(null==connection) {
+//            connection.close();
+//        }
     }
 
     @Override

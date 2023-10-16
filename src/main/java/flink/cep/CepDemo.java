@@ -29,6 +29,7 @@ import org.apache.flink.cep.PatternStream;
 import org.apache.flink.cep.pattern.Pattern;
 import org.apache.flink.cep.pattern.conditions.SimpleCondition;
 
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 import flink.cep.events.LoginEvent;
@@ -58,8 +59,10 @@ public class CepDemo {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
+//        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(new Configuration());
+
 //        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        env.enableCheckpointing(1000);
+        env.enableCheckpointing(10000);
 
 //        env.setParallelism(2);
 
@@ -73,7 +76,6 @@ public class CepDemo {
 //                new LoginEvent(3, "fail2", 1575600189000L)
 //        )
                 .assignTimestampsAndWatermarks(
-                //注册watermark方法和旧版稍有不同
                 WatermarkStrategy.<LoginEvent>forBoundedOutOfOrderness(Duration.ofSeconds(0))
                         .withTimestampAssigner((event,timestamp)-> event.getEventTime()))
                 .keyBy(new KeySelector<LoginEvent, Integer>() {
@@ -94,7 +96,7 @@ public class CepDemo {
             public boolean filter(LoginEvent loginEvent) throws Exception {
                 return "fail".equals(loginEvent.getEventType());
             }
-        }).within(Time.seconds(5)).times(1);
+        }).within(Time.seconds(10)).times(1);
 
 
         Pattern<LoginEvent, LoginEvent> pattern2 = Pattern.<LoginEvent>begin("begin").where(new SimpleCondition<LoginEvent>() {
@@ -114,6 +116,8 @@ public class CepDemo {
         PatternStream<LoginEvent> patternStream1 = CEP.pattern(loginEventKeyedStream, pattern1);
 
         PatternStream<LoginEvent> patternStream2 = CEP.pattern(loginEventKeyedStream, pattern2);
+
+
 
 
         //侧输出标志
@@ -166,6 +170,8 @@ public class CepDemo {
 
 
         env.execute();
+
+        System.out.println(1);
     }
 
 
